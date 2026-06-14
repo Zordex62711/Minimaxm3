@@ -16,8 +16,8 @@
 <script>
 // === Scene Setup ===
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a1628);
-scene.fog = new THREE.Fog(0x0a1628, 15, 40);
+scene.background = new THREE.Color(0x1a3050);
+scene.fog = new THREE.Fog(0x1a3050, 20, 50);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 2, 8);
@@ -37,19 +37,19 @@ controls.maxDistance = 20;
 controls.target.set(0, 0, 0);
 
 // === Lighting ===
-const ambientLight = new THREE.AmbientLight(0x4488cc, 0.4);
+const ambientLight = new THREE.AmbientLight(0x88bbee, 0.8);
 scene.add(ambientLight);
 
-const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+const topLight = new THREE.DirectionalLight(0xffffff, 1.2);
 topLight.position.set(0, 10, 5);
 topLight.castShadow = true;
 scene.add(topLight);
 
-const pointLight1 = new THREE.PointLight(0x88ccff, 0.6, 15);
+const pointLight1 = new THREE.PointLight(0x88ccff, 1.0, 20);
 pointLight1.position.set(-3, 3, 0);
 scene.add(pointLight1);
 
-const pointLight2 = new THREE.PointLight(0x4488ff, 0.4, 15);
+const pointLight2 = new THREE.PointLight(0x4488ff, 0.8, 20);
 pointLight2.position.set(3, -1, 2);
 scene.add(pointLight2);
 
@@ -58,15 +58,14 @@ const tankWidth = 6, tankHeight = 4, tankDepth = 4;
 
 // Glass material
 const glassMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x88ccff,
+    color: 0xaaddff,
     transparent: true,
-    opacity: 0.15,
+    opacity: 0.2,
     roughness: 0.05,
     metalness: 0.0,
-    transmission: 0.9,
-    thickness: 0.1,
     side: THREE.DoubleSide,
-    envMapIntensity: 1.0
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1
 });
 
 // Tank walls (5 panels - no top)
@@ -88,16 +87,16 @@ panels.forEach(p => {
 
 // Tank edges (wireframe for visibility)
 const edgeGeom = new THREE.BoxGeometry(tankWidth, tankHeight, tankDepth);
-const edgeMat = new THREE.MeshBasicMaterial({ color: 0x88aacc, wireframe: true, transparent: true, opacity: 0.3 });
+const edgeMat = new THREE.MeshBasicMaterial({ color: 0xaaccee, wireframe: true, transparent: true, opacity: 0.5 });
 const edgeMesh = new THREE.Mesh(edgeGeom, edgeMat);
 scene.add(edgeMesh);
 
 // === Water Volume ===
 const waterGeom = new THREE.BoxGeometry(tankWidth - 0.1, tankHeight - 0.3, tankDepth - 0.1);
 const waterMat = new THREE.MeshPhysicalMaterial({
-    color: 0x1166aa,
+    color: 0x2288cc,
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.15,
     roughness: 0.2,
     metalness: 0.0,
     side: THREE.BackSide
