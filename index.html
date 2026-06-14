@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Aquarium</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// === Scene Setup ===
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1628);
+scene.fog = new THREE.Fog(0x0a1628, 15, 40);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 2, 8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// === Orbit Controls ===
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 4;
+controls.maxDistance = 20;
+controls.target.set(0, 0, 0);
+
+// === Lighting ===
+const ambientLight = new THREE.AmbientLight(0x4488cc, 0.4);
+scene.add(ambientLight);
+
+const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+topLight.position.set(0, 10, 5);
+topLight.castShadow = true;
+scene.add(topLight);
+
+const pointLight1 = new THREE.PointLight(0x88ccff, 0.6, 15);
+pointLight1.position.set(-3, 3, 0);
+scene.add(pointLight1);
+
+const pointLight2 = new THREE.PointLight(0x4488ff, 0.4, 15);
+pointLight2.position.set(3, -1, 2);
+scene.add(pointLight2);
+
+// === Aquarium Tank ===
+const tankWidth = 6, tankHeight = 4, tankDepth = 4;
+
+// Glass material
+const glassMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x88ccff,
+    transparent: true,
+    opacity: 0.15,
+    roughness: 0.05,
+    metalness: 0.0,
+    transmission: 0.9,
+    thickness: 0.1,
+    side: THREE.DoubleSide,
+    envMapIntensity: 1.0
+});
+
+// Tank walls (5 panels - no top)
+const panels = [
+    { size: [tankWidth, tankHeight], pos: [0, 0, -tankDepth / 2], rot: [0, 0, 0] },       // back
+    { size: [tankWidth, tankHeight], pos: [0, 0, tankDepth / 2], rot: [0, 0, 0] },        // front
+    { size: [tankDepth, tankHeight], pos: [-tankWidth / 2, 0, 0], rot: [0, Math.PI / 2, 0] }, // left
+    { size: [tankDepth, tankHeight], pos: [tankWidth / 2, 0, 0], rot: [0, Math.PI / 2, 0] },  // right
+    { size: [tankWidth, tankDepth], pos: [0, -tankHeight / 2, 0], rot: [Math.PI / 2, 0, 0] }  // bottom
+];
+
+panels.forEach(p => {
+    const geom = new THREE.PlaneGeometry(p.size[0], p.size[1]);
+    const mesh = new THREE.Mesh(geom, glassMaterial);
+    mesh.position.set(...p.pos);
+    mesh.rotation.set(...p.rot);
+    scene.add(mesh);
+});
+
+// Tank edges (wireframe for visibility)
+const edgeGeom = new THREE.BoxGeometry(tankWidth, tankHeight, tankDepth);
+const edgeMat = new THREE.MeshBasicMaterial({ color: 0x88aacc, wireframe: true, transparent: true, opacity: 0.3 });
+const edgeMesh = new THREE.Mesh(edgeGeom, edgeMat);
+scene.add(edgeMesh);
+
+// === Water Volume ===
+const waterGeom = new THREE.BoxGeometry(tankWidth - 0.1, tankHeight - 0.3, tankDepth - 0.1);
+const waterMat = new THREE.MeshPhysicalMaterial({
+    color: 0x1166aa,
+    transparent: true,
+    opacity: 0.12,
+    roughness: 0.2,
+    metalness: 0.0,
+    side: THREE.BackSide
+});
+const waterMesh = new THREE.Mesh(waterGeom, waterMat);
+waterMesh.position.y = -0.15;
+scene.add(waterMesh);
+
+// === Sand Bottom ===
+const sandGeom = new THREE.BoxGeometry(tankWidth - 0.2, 0.3, tankDepth - 0.2);
+const sandMat = new THREE.MeshStandardMaterial({ color: 0xc2a645, roughness: 0.9 });
+const sandMesh = new THREE.Mesh(sandGeom, sandMat);
+sandMesh.position.y = -tankHeight / 2 + 0.15;
+scene.add(sandMesh);
+
+// === Decorative Rocks ===
+function createRock(x, z, scale) {
+    const geom = new THREE.DodecahedronGeometry(scale, 0);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x556666, roughness: 0.8 });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.set(x, -tankHeight / 2 + scale * 0.5, z);
+    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+    scene.add(mesh);
+}
+createRock(-2, -1, 0.3);
+createRock(-1.5, 0.5, 0.2);
+createRock(2, -0.5, 0.35);
+createRock(1.5, 1, 0.25);
+
+// === Seaweed ===
+function createSeaweed(x, z) {
+    const segments = 8;
+    const curve = new THREE.CatmullRomCurve3(
+        Array.from({ length: segments }, (_, i) => new THREE.Vector3(0, i * 0.3, 0))
+    );
+    const geom = new THREE.TubeGeometry(curve, segments * 2, 0.04, 6, false);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x228844, roughness: 0.6 });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.set(x, -tankHeight / 2 + 0.15, z);
+    mesh.userData = { baseX: x, phase: Math.random() * Math.PI * 2 };
+    scene.add(mesh);
+    return mesh;
+}
+const seaweeds = [];
+seaweeds.push(createSeaweed(-2.2, -1.2));
+seaweeds.push(createSeaweed(-1.8, 0.8));
+seaweeds.push(createSeaweed(2.3, 0.3));
+seaweeds.push(createSeaweed(1.0, -1.5));
+
+// === Fish ===
+const fishes = [];
+const fishColors = [0xff6633, 0xffcc00, 0x33ccff, 0xff33aa, 0x66ff66, 0xff8800, 0xaa33ff, 0x00ffcc];
+
+function createFish(color) {
+    const group = new THREE.Group();
+
+    // Body - ellipsoid shape
+    const bodyGeom = new THREE.SphereGeometry(0.2, 12, 8);
+    bodyGeom.scale(1.5, 0.8, 0.6);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.3, metalness: 0.2 });
+    const body = new THREE.Mesh(bodyGeom, bodyMat);
+    group.add(body);
+
+    // Tail fin
+    const tailGeom = new THREE.ConeGeometry(0.15, 0.3, 4);
+    const tailMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4 });
+    const tail = new THREE.Mesh(tailGeom, tailMat);
+    tail.position.x = -0.35;
+    tail.rotation.z = Math.PI / 2;
+    group.add(tail);
+
+    // Dorsal fin
+    const dorsalGeom = new THREE.ConeGeometry(0.08, 0.2, 4);
+    const dorsalMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4 });
+    const dorsal = new THREE.Mesh(dorsalGeom, dorsalMat);
+    dorsal.position.y = 0.15;
+    dorsal.position.x = -0.05;
+    group.add(dorsal);
+
+    // Eye
+    const eyeGeom = new THREE.SphereGeometry(0.03, 8, 8);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const eye1 = new THREE.Mesh(eyeGeom, eyeMat);
+    eye1.position.set(0.15, 0.05, 0.1);
+    group.add(eye1);
+    const eye2 = eye1.clone();
+    eye2.position.z = -0.1;
+    group.add(eye2);
+
+    // Pupil
+    const pupilGeom = new THREE.SphereGeometry(0.015, 6, 6);
+    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const pupil1 = new THREE.Mesh(pupilGeom, pupilMat);
+    pupil1.position.set(0.17, 0.05, 0.1);
+    group.add(pupil1);
+    const pupil2 = pupil1.clone();
+    pupil2.position.z = -0.1;
+    group.add(pupil2);
+
+    // Scale the fish randomly
+    const s = 0.6 + Math.random() * 0.6;
+    group.scale.set(s, s, s);
+
+    scene.add(group);
+
+    // Bounds for fish movement (inside the tank)
+    const bounds = {
+        x: tankWidth / 2 - 0.5,
+        y: tankHeight / 2 - 0.5,
+        z: tankDepth / 2 - 0.5
+    };
+
+    return {
+        mesh: group,
+        tail: tail,
+        // Position
+        position: new THREE.Vector3(
+            (Math.random() - 0.5) * (tankWidth - 1),
+            (Math.random() - 0.5) * (tankHeight - 1.5),
+            (Math.random() - 0.5) * (tankDepth - 1)
+        ),
+        // Movement
+        velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 0.02,
+            (Math.random() - 0.5) * 0.005,
+            (Math.random() - 0.5) * 0.02
+        ),
+        targetVelocity: new THREE.Vector3(),
+        turnTimer: Math.random() * 100,
+        turnInterval: 80 + Math.random() * 120,
+        speed: 0.005 + Math.random() * 0.01,
+        bounds: bounds,
+        tailPhase: Math.random() * Math.PI * 2
+    };
+}
+
+// Create 8 fish
+for (let i = 0; i < 8; i++) {
+    fishes.push(createFish(fishColors[i % fishColors.length]));
+}
+
+// === Bubbles ===
+const bubbles = [];
+function createBubble() {
+    const geom = new THREE.SphereGeometry(0.02 + Math.random() * 0.04, 8, 8);
+    const mat = new THREE.MeshPhysicalMaterial({
+        color: 0xaaddff,
+        transparent: true,
+        opacity: 0.4,
+        roughness: 0.1,
+        metalness: 0.0
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.set(
+        (Math.random() - 0.5) * (tankWidth - 1),
+        -tankHeight / 2 + 0.2,
+        (Math.random() - 0.5) * (tankDepth - 1)
+    );
+    scene.add(mesh);
+    return {
+        mesh: mesh,
+        speed: 0.005 + Math.random() * 0.01,
+        wobble: Math.random() * Math.PI * 2
+    };
+}
+
+for (let i = 0; i < 20; i++) {
+    bubbles.push(createBubble());
+}
+
+// === Caustic Light Effect on Sand ===
+const causticGeom = new THREE.PlaneGeometry(tankWidth - 0.3, tankDepth - 0.3);
+const causticMat = new THREE.MeshBasicMaterial({
+    color: 0x88ccff,
+    transparent: true,
+    opacity: 0.05,
+    side: THREE.DoubleSide
+});
+const causticPlane = new THREE.Mesh(causticGeom, causticMat);
+causticPlane.rotation.x = -Math.PI / 2;
+causticPlane.position.y = -tankHeight / 2 + 0.32;
+scene.add(causticPlane);
+
+// === Animation Loop ===
+const clock = new THREE.Clock();
+
+function updateFish(fish, deltaTime) {
+    fish.turnTimer += 1;
+
+    // Randomly change direction
+    if (fish.turnTimer >= fish.turnInterval) {
+        fish.turnTimer = 0;
+        fish.turnInterval = 80 + Math.random() * 120;
+        fish.targetVelocity.set(
+            (Math.random() - 0.5) * fish.speed * 2,
+            (Math.random() - 0.5) * fish.speed * 0.5,
+            (Math.random() - 0.5) * fish.speed * 2
+        );
+    }
+
+    // Smoothly interpolate velocity
+    fish.velocity.lerp(fish.targetVelocity, 0.02);
+
+    // Ensure minimum speed so fish keep moving
+    const currentSpeed = fish.velocity.length();
+    if (currentSpeed < fish.speed * 0.3) {
+        fish.velocity.normalize().multiplyScalar(fish.speed * 0.5);
+    }
+
+    // Update position
+    fish.position.add(fish.velocity);
+
+    // Bounce off walls smoothly
+    const b = fish.bounds;
+    if (Math.abs(fish.position.x) > b.x) {
+        fish.velocity.x *= -1;
+        fish.targetVelocity.x *= -1;
+        fish.position.x = Math.sign(fish.position.x) * b.x;
+    }
+    if (fish.position.y > b.y - 0.3 || fish.position.y < -b.y + 0.3) {
+        fish.velocity.y *= -1;
+        fish.targetVelocity.y *= -1;
+        fish.position.y = THREE.MathUtils.clamp(fish.position.y, -b.y + 0.3, b.y - 0.3);
+    }
+    if (Math.abs(fish.position.z) > b.z) {
+        fish.velocity.z *= -1;
+        fish.targetVelocity.z *= -1;
+        fish.position.z = Math.sign(fish.position.z) * b.z;
+    }
+
+    // Apply position to mesh
+    fish.mesh.position.copy(fish.position);
+
+    // Rotate fish to face direction of travel
+    if (fish.velocity.length() > 0.001) {
+        const angle = Math.atan2(fish.velocity.z, fish.velocity.x);
+        // Smooth rotation
+        const targetRotY = -angle + Math.PI / 2;
+        fish.mesh.rotation.y += (targetRotY - fish.mesh.rotation.y) * 0.05;
+    }
+
+    // Tail wagging animation
+    fish.tailPhase += 0.15;
+    fish.tail.rotation.y = Math.sin(fish.tailPhase) * 0.4;
+
+    // Slight body bobbing
+    fish.mesh.position.y += Math.sin(fish.tailPhase * 0.5) * 0.002;
+}
+
+function updateBubbles() {
+    bubbles.forEach(b => {
+        b.mesh.position.y += b.speed;
+        b.wobble += 0.05;
+        b.mesh.position.x += Math.sin(b.wobble) * 0.002;
+
+        // Reset bubble when it reaches the top
+        if (b.mesh.position.y > tankHeight / 2 - 0.3) {
+            b.mesh.position.y = -tankHeight / 2 + 0.2;
+            b.mesh.position.x = (Math.random() - 0.5) * (tankWidth - 1);
+            b.mesh.position.z = (Math.random() - 0.5) * (tankDepth - 1);
+        }
+    });
+}
+
+function updateSeaweed(time) {
+    seaweeds.forEach(sw => {
+        sw.rotation.z = Math.sin(time * 0.5 + sw.userData.phase) * 0.1;
+        sw.rotation.x = Math.sin(time * 0.3 + sw.userData.phase) * 0.05;
+    });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+    const elapsed = clock.getElapsedTime();
+
+    // Update fish
+    fishes.forEach(fish => updateFish(fish, delta));
+
+    // Update bubbles
+    updateBubbles();
+
+    // Update seaweed
+    updateSeaweed(elapsed);
+
+    // Caustic light flicker
+    causticMat.opacity = 0.03 + Math.sin(elapsed * 2) * 0.02;
+
+    // Update controls
+    controls.update();
+
+    renderer.render(scene, camera);
+}
+
+animate();
+
+// === Handle Window Resize ===
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
